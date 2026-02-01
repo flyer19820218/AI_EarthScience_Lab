@@ -3,11 +3,11 @@ import google.generativeai as genai
 import os
 import asyncio
 import edge_tts
-import fitz  # 雲端截圖專用
+import fitz  # 雲端自動截圖 (PyMuPDF)
 import re
 from PIL import Image
 
-# --- 1. 頁面配置 (全黑翩翩體、全黑文字、星艦風格) ---
+# --- 1. 頁面配置 (翩翩體、全黑文字、星艦指揮艙風格) ---
 st.set_page_config(page_title="地科 AI 星艦導航室", layout="wide")
 
 st.markdown("""
@@ -34,12 +34,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. 核心助教語音 (男聲：YunxiNeural 原生 Bytes 版) ---
+# --- 2. 核心助教語音 (男聲：YunxiNeural 原生流輸出) ---
 async def generate_voice_bytes(text):
+    # 移除 LaTeX 與特殊符號，確保馬斯克語速科技感 (+8%)
     clean_text = re.sub(r'\$+', '', text)
     clean_text = clean_text.replace('\\%', '百分之').replace('%', '百分之')
     clean_text = clean_text.replace('*', '').replace('#', '').replace('\n', ' ')
-    # 馬斯克風格：語速稍快 (+8%)，充滿狂想感
+    
     communicate = edge_tts.Communicate(clean_text, "zh-TW-YunxiNeural", rate="+8%")
     audio_data = b""
     async for chunk in communicate.stream():
@@ -47,7 +48,7 @@ async def generate_voice_bytes(text):
             audio_data += chunk["data"]
     return audio_data
 
-# --- 3. 雲端截圖功能 ---
+# --- 3. 雲端截圖功能 (穩定模式) ---
 def get_pdf_page_image(pdf_path, page_index):
     doc = fitz.open(pdf_path)
     page = doc.load_page(page_index)
@@ -56,7 +57,7 @@ def get_pdf_page_image(pdf_path, page_index):
     doc.close()
     return img_data
 
-# --- 4. 地科講義 23 頁中二標題 (由 PDF 基因精確對位) ---
+# --- 4. 地科講義 23 頁中二標題 (由星艦核心校準) ---
 page_titles = {
     1: "【液態的契約：星球表面與地下水的流轉律法】", 
     2: "【時間的殘響：風化侵蝕與大地雕刻術】", 
@@ -83,18 +84,17 @@ page_titles = {
     23: "【臭氧的漏洞：紫外的侵蝕與守護層崩解】"
 }
 
-# --- 5. Session 狀態 ---
+# --- 5. 初始化 Session ---
 if 'audio_data' not in st.session_state: st.session_state.audio_data = None
 
-# --- 6. 核心 API 通行證申請教學 (絕對保留) ---
+# --- 6. 通行證申請教學 ---
 st.title("🚀 地科 AI 星艦導航室 (馬斯克助教版)")
 st.markdown("""
 <div class="guide-box">
-    <b>📖 星艦通行證申請教學（學生必看）：</b><br>
-    1. 點擊連結：<a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a> 並登入。<br>
-    2. 點擊左側 <b>Create API key</b>。<br>
-    3. <b>⚠️ 重要：務必勾選兩次同意條款</b>，這就像發射前的壓力測試，絕對不能跳過。<br>
-    4. 複製那一串金鑰，貼回下方欄位按 Enter 即可啟動馬斯克。
+    <b>📖 學生快速通行指南：</b><br>
+    1. 進入 <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>。<br>
+    2. 點擊 <b>Create API key</b>，<b>務必勾選兩次同意條款</b>。<br>
+    3. 貼回下方「通行證」欄位按 Enter 啟動馬斯克。
 </div>
 """, unsafe_allow_html=True)
 
@@ -102,17 +102,20 @@ user_key = st.text_input("🔑 通行證輸入區：", type="password")
 st.divider()
 
 # --- 7. 學生提問專區 ---
-st.subheader("💬 星球數據諮詢：拍照或打字")
+st.subheader("💬 星球數據諮詢")
 col_q, col_up = st.columns([1, 1])
-with col_q: student_q = st.text_input("輸入問題：", placeholder="例如：為什麼台灣斷層這麼多？")
-with col_up: uploaded_file = st.file_uploader("上傳觀測照片：", type=["jpg", "png", "jpeg"])
+with col_q: student_q = st.text_input("輸入關於星球的問題：", placeholder="例如：為什麼會發生地震？")
+with col_up: uploaded_file = st.file_uploader("拍照諮詢星球數據：", type=["jpg", "png", "jpeg"])
 
 if (student_q or uploaded_file) and user_key:
     with st.spinner("正在啟動星鏈處理數據..."):
         try:
             genai.configure(api_key=user_key)
             model = genai.GenerativeModel('models/gemini-2.5-flash')
-            parts = ["你是地科 AI 助教，個性像天馬行空的馬斯克。請用雞排配大杯珍奶比喻。公式必須 LaTeX。"]
+            parts = [
+                "你現在是地科 AI 助教馬斯克。請**嚴格全程使用繁體中文**回答。"
+                "開場一定要提到雞排配大杯珍奶。所有公式必須使用 LaTeX。語氣要科技感且狂想。"
+            ]
             if uploaded_file: parts.append(Image.open(uploaded_file))
             if student_q: parts.append(student_q)
             res = model.generate_content(parts)
@@ -121,10 +124,10 @@ if (student_q or uploaded_file) and user_key:
 
 st.divider()
 
-# --- 8. 地科四大門雙選單 ---
+# --- 8. 地科四大門選單 (23 頁) ---
 st.subheader("📖 啟動導航：選擇學習單元")
 parts_list = ["【一：液態與地表律法】", "【二：板塊與對撞契約】", "【三：星軌與引力律法】", "【四：大氣與終焉】"]
-part_choice = st.selectbox("第一步：選擇星球單元", parts_list)
+part_choice = st.selectbox("第一步：選擇星球單元區域", parts_list)
 
 if "一" in part_choice: r = range(1, 8)
 elif "二" in part_choice: r = range(8, 15)
@@ -138,22 +141,23 @@ target_page = int(re.search(r"第 (\d+) 頁", selected_page_str).group(1))
 # --- 9. 核心導讀按鈕 ---
 if st.button(f"🚀 啟動【第 {target_page} 頁】圖文導讀"):
     if not user_key:
-        st.warning("請先輸入金鑰。")
+        st.warning("請先輸入通行證。")
     else:
         genai.configure(api_key=user_key)
         path_finals = os.path.join(os.getcwd(), "data", "地科finals.pdf")
-        with st.spinner("正在調製波霸奶茶..."):
+        with st.spinner("正在調製波霸奶茶並切換中文通訊..."):
             try:
-                # 1. 雲端截圖顯示
+                # 1. 雲端截圖
                 page_img = get_pdf_page_image(path_finals, target_page - 1)
                 st.image(page_img, caption=f"觀測數據：{page_titles[target_page]}", use_column_width=True)
                 
-                # 2. AI 教學 (馬斯克風，無測驗)
+                # 2. AI 講解 (繁體中文強制鎖定)
                 file_obj = genai.upload_file(path=path_finals)
                 model = genai.GenerativeModel('models/gemini-2.5-flash')
                 prompt = [
                     file_obj, 
-                    f"你是地科 AI 助教，個性像馬斯克。1. 詳細導讀講義第 {target_page} 頁。2. 開場提到雞排配大杯珍奶。3. 解釋要天馬行空。4. 公式必須 LaTeX。5. 絕對不准出測驗。"
+                    f"你現在是地科 AI 助教馬斯克。請**嚴格全程使用繁體中文**詳細導讀講義第 {target_page} 頁。"
+                    "1. 開場提雞排珍奶。2. 用科技與火箭術語比喻。3. 公式 LaTeX。4. 不准出測驗。5. 絕對不准說英文。"
                 ]
                 res = model.generate_content(prompt)
                 st.markdown(res.text)
