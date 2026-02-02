@@ -8,48 +8,105 @@ import re
 import base64
 from PIL import Image
 
-# --- 1. 頁面配置 (全黑翩翩體、星艦指揮艙風格) ---
+# --- 1. 頁面配置 (全平台抗暗色模式 & 翩翩體鎖定) ---
 st.set_page_config(page_title="地科 AI 星艦導航室", layout="wide")
 
 st.markdown("""
     <style>
+    /* 1. 強制背景鎖定為白色 (白晝協議) */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stToolbar"], .stMain {
+        background-color: #ffffff !important;
+    }
+
+    /* 2. 鎖定全黑翩翩體 */
     html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, span, label, li {
         color: #000000 !important;
-        font-family: 'HanziPen SC', '翩翩體', 'KaiTi', sans-serif !important;
+        font-family: 'HanziPen SC', '翩翩體', 'PingFang TC', 'Heiti TC', 'Microsoft JhengHei', sans-serif !important;
     }
+
+    /* 3. 深度修正：打字提問區 (強制白底黑字) */
+    div[data-testid="stTextInput"] input {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important; /* 針對 iOS 強制黑字 */
+        border: 2px solid #000000 !important;
+    }
+
+    /* 4. 深度修正：拍照上傳區 (強制白底黑字 + 按鈕中文化) */
+    [data-testid="stFileUploader"] section {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 2px dashed #000000 !important;
+    }
+    [data-testid="stFileUploader"] button {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #000000 !important;
+    }
+    /* 強制將 Browse files 換成中文 "瀏覽檔案" */
+    [data-testid="stFileUploader"] button div span {
+        font-size: 0 !important;
+    }
+    [data-testid="stFileUploader"] button div span::before {
+        content: "瀏覽檔案" !important;
+        font-size: 1rem !important;
+        color: #000000 !important;
+    }
+
+    /* 5. 下拉選單 (拉把) 鎖定 */
+    div[data-baseweb="select"], div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* 6. 您的地科紫色導航框鎖定 (保留原味) */
     .guide-box {
-        background-color: #f3e5f5;
+        background-color: #f3e5f5 !important;
+        color: #000000 !important;
         padding: 15px;
         border-radius: 12px;
         border: 2px solid #9c27b0;
         margin-bottom: 20px;
     }
-    .stButton>button {
-        background-color: #e8eaf6 !important;
-        border-radius: 8px;
-        font-weight: bold;
-        width: 100%;
-        height: 50px;
+
+    /* 7. 您的星艦靛藍按鈕防黑修正 */
+    div.stButton > button {
+        background-color: #e8eaf6 !important; 
+        color: #000000 !important;
+        border: 2px solid #3f51b5 !important;
+        border-radius: 8px !important;
+        font-weight: bold !important;
+        width: 100% !important;
+        height: 50px !important;
         font-size: 1.2rem !important;
+        opacity: 1 !important;
+    }
+
+    /* 8. LaTeX 公式顏色鎖定 */
+    .katex {
+        color: #000000 !important;
+    }
+
+    /* 針對手機暗色模式的終極覆蓋 */
+    @media (prefers-color-scheme: dark) {
+        .stApp, div[data-testid="stTextInput"] input, section[data-testid="stFileUploader"], [data-testid="stFileUploader"] button {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. 核心助教語音 (iPad 專用 Base64 強效封裝方案) ---
 async def generate_voice_base64(text):
-    # 淨化文本，處理百分比與 LaTeX 符號
     clean_text = re.sub(r'\$+', '', text)
     clean_text = clean_text.replace('\\%', '百分之').replace('%', '百分之')
     clean_text = clean_text.replace('*', '').replace('#', '').replace('\n', ' ')
-    
-    # 使用最穩定的 HsiaoChenNeural
     communicate = edge_tts.Communicate(clean_text, "zh-TW-HsiaoChenNeural", rate="-2%")
     audio_data = b""
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             audio_data += chunk["data"]
-            
-    # 轉為 Base64 字串，這是突破 iPad 靜音牆的關鍵
     b64 = base64.b64encode(audio_data).decode()
     return f'<audio controls style="width:100%"><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>'
 
@@ -62,14 +119,14 @@ def get_pdf_page_image(pdf_path, page_index):
     doc.close()
     return img_data
 
-# --- 4. 地科 23 頁【基因精確對位標題】 (完全校準 PDF 內容) ---
+# --- 4. 地科 23 頁標題 (完整保留) ---
 page_titles = {
     1: "【液態的契約：星球表面與地下水的流轉律法】", 
     2: "【時間的殘響：風化、侵蝕與搬運的大地重塑術】", 
     3: "【地層的記憶體：沉積環境、化石與地史紀錄存檔】",
     4: "【真理的疊加：地層判讀、疊置定律與截切律法】", 
     5: "【時空的斷裂：不整合面、褶皺與斷層的毀滅契約】", 
-    6: "【星塵的循環：岩石種類、循環與地表變動的恆定性】",
+    6: "【星塵的循環：岩岩種類、循環與地表變動的恆定性】",
     7: "【地球的年輪：地質年代、生命長征與地球歷史座標】", 
     8: "【核心的脈動：地球內部構造、震波探測與能量源】", 
     9: "【大陸的航行：大陸漂移、海底擴張與板塊運動學說】",
@@ -92,7 +149,7 @@ page_titles = {
 # --- 5. 初始化 Session ---
 if 'audio_html' not in st.session_state: st.session_state.audio_html = None
 
-# --- 6. 核心 API 通行證指南 (絕對鎖死在頂端) ---
+# --- 6. 核心 API 通行證指南 ---
 st.title("🚀 地科 AI 星艦導航室 (馬斯克助教版)")
 st.markdown("""
 <div class="guide-box">
@@ -106,14 +163,13 @@ st.markdown("""
 user_key = st.text_input("🔑 通行證輸入區：", type="password")
 st.divider()
 
-# --- 7. 提問區 (提示語 placeholder 鎖死) ---
+# --- 7. 提問區 ---
 st.subheader("💬 星球數據諮詢：拍照或打字提問")
 col_q, col_up = st.columns([1, 1])
 with col_q: student_q = st.text_input("打字提問星球真理：", placeholder="例如：為什麼台灣地震這麼多？")
 with col_up: uploaded_file = st.file_uploader("拍照詢問馬斯克助教：", type=["jpg", "png", "jpeg"])
 
 if (student_q or uploaded_file) and user_key:
-    # --- 火箭燃料填充動畫 ---
     with st.spinner("火箭正在填充燃料，準備進入同步軌道處理數據..."):
         try:
             genai.configure(api_key=user_key)
@@ -151,30 +207,25 @@ if st.button(f"🚀 啟動【第 {target_page} 頁】圖文導讀"):
     else:
         genai.configure(api_key=user_key)
         path_finals = os.path.join(os.getcwd(), "data", "地科finals.pdf")
-        # --- 火箭燃料填充動畫 ---
         with st.spinner("火箭正在填充燃料，準備點火發射導航數據..."):
             try:
-                # 1. 雲端截圖
                 page_img = get_pdf_page_image(path_finals, target_page - 1)
                 st.image(page_img, caption=f"觀測數據：{page_titles[target_page]}", use_column_width=True)
                 
-                # 2. AI 講解 (繁體中文強制鎖定)
                 file_obj = genai.upload_file(path=path_finals)
                 model = genai.GenerativeModel('models/gemini-2.5-flash')
                 prompt = [
                     file_obj, 
                     f"你現在是地科 AI 助教馬斯克。請**嚴格全程使用繁體中文**詳細導讀講義第 {target_page} 頁。"
-                    "開場提雞排珍奶。用火箭術語比喻。公式 LaTeX。不准出測驗。絕對不准說英文。"
+                    "開場提雞排珍奶。用火箭與星際探索比喻。公式 LaTeX。不准出測驗。絕對不准說英文。"
                 ]
                 res = model.generate_content(prompt)
                 st.markdown(res.text)
                 
-                # 3. 生成音訊 (Base64 方案，確保 iPad 可播)
                 st.session_state.audio_html = asyncio.run(generate_voice_base64(res.text))
                 st.balloons()
             except Exception as e: st.error(f"導航失敗：{e}")
 
-# --- 10. iPad/手機音訊解鎖區 ---
 if st.session_state.audio_html:
     st.markdown("---")
     st.info("🔊 **星艦提醒**：請點擊下方播放鈕聽取繁中導航語音。")
